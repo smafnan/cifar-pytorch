@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Datasets and trained weights (downloaded / produced at runtime)
+data/
+reports/*.pt
+
+# Figures + metrics JSON ARE committed so results render on GitHub.
