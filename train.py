@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import time
 from pathlib import Path
 
 import matplotlib
@@ -31,10 +30,9 @@ import torch.nn as nn
 from src.cifar import (
     build_model,
     count_trainable_params,
-    evaluate,
+    fit,
     get_dataloaders,
     get_device,
-    train_one_epoch,
 )
 
 
@@ -79,31 +77,36 @@ def main(argv: list[str] | None = None) -> int:
     optimizer = torch.optim.Adam(params, lr=lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    history = {"train_loss": [], "train_acc": [], "test_loss": [], "test_acc": []}
-    best_acc = 0.0
-    for epoch in range(args.epochs):
-        t0 = time.time()
-        tr = train_one_epoch(model, train_loader, optimizer, device, criterion)
-        te = evaluate(model, test_loader, device, criterion)
-        scheduler.step()
-        for k, v in {"train_loss": tr["loss"], "train_acc": tr["acc"],
-                     "test_loss": te["loss"], "test_acc": te["acc"]}.items():
-            history[k].append(v)
-        best_acc = max(best_acc, te["acc"])
-        print(f"epoch {epoch + 1:3d}/{args.epochs}  "
+    def _log_epoch(epoch, epochs, tr, te, elapsed):
+        print(f"epoch {epoch + 1:3d}/{epochs}  "
               f"train_loss={tr['loss']:.3f} train_acc={tr['acc']:.3f}  "
-              f"test_acc={te['acc']:.3f}  ({time.time() - t0:.1f}s)")
+              f"test_acc={te['acc']:.3f}  ({elapsed:.1f}s)")
 
-    print(f"\nBest test accuracy: {best_acc:.4f}")
+    # `fit` checkpoints the model state from whichever epoch achieves the best
+    # test accuracy (not just the final epoch), so reports/<model>.pt always
+    # matches the best_test_acc reported below.
+    result = fit(
+        model, train_loader, test_loader, optimizer, device, args.epochs,
+        criterion=criterion, scheduler=scheduler, on_epoch_end=_log_epoch,
+    )
+    history = result["history"]
+    best_acc = result["best_acc"]
+    best_epoch = result["best_epoch"]
+    best_state = result["best_state"]
+
+    print(f"\nBest test accuracy: {best_acc:.4f} (epoch {best_epoch}/{args.epochs})")
     _plot_history(history, args.output_dir / f"{args.model}_curves.png")
-    torch.save(model.state_dict(), args.output_dir / f"{args.model}.pt")
+    # Save the best-epoch state, not the final one, so the checkpoint always
+    # matches the reported best_test_acc / best_epoch in the metrics JSON.
+    torch.save(best_state, args.output_dir / f"{args.model}.pt")
     (args.output_dir / f"{args.model}_metrics.json").write_text(json.dumps({
         "model": args.model, "epochs": args.epochs, "lr": lr,
         "image_size": image_size, "best_test_acc": best_acc,
+        "best_epoch": best_epoch,
         "trainable_params": count_trainable_params(model),
         "history": history,
     }, indent=2), encoding="utf-8")
-    print(f"Saved model + metrics to {args.output_dir}/")
+    print(f"Saved best-epoch model (epoch {best_epoch}) + metrics to {args.output_dir}/")
     return 0
 
 

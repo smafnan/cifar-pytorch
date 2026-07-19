@@ -2,11 +2,11 @@
 
 from .data import build_transforms, get_dataloaders, CLASSES
 from .models import SmallCNN, build_model, build_transfer_model, count_trainable_params
-from .engine import train_one_epoch, evaluate, get_device
+from .engine import train_one_epoch, evaluate, get_device, fit
 
 __all__ = [
     "build_transforms", "get_dataloaders", "CLASSES",
     "SmallCNN", "build_model", "build_transfer_model", "count_trainable_params",
-    "train_one_epoch", "evaluate", "get_device",
+    "train_one_epoch", "evaluate", "get_device", "fit",
 ]
 __version__ = "1.0.0"

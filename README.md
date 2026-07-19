@@ -76,7 +76,7 @@ python train.py --model cnn --epochs 30                       # from scratch
 python train.py --model transfer --image-size 224 --epochs 10 # transfer learning (frozen)
 python train.py --model transfer --finetune --epochs 10        # transfer learning (fine-tuned)
 
-# 8 tests, fully offline (random tensors + torchvision FakeData, no CIFAR download):
+# 10 tests, fully offline (random tensors + torchvision FakeData, no CIFAR download):
 pytest -q
 ```
 
@@ -103,10 +103,12 @@ src/cifar/
 ├── __init__.py   # re-exports the public API
 ├── data.py       # CIFAR-10 loaders; train-time augmentation, eval-time clean transforms
 ├── models.py     # SmallCNN + ResNet-18 transfer model (freeze / fine-tune)
-└── engine.py     # model-agnostic train_one_epoch / evaluate / device selection
+└── engine.py     # model-agnostic train_one_epoch / evaluate / fit (checkpoints the
+                  # best-test-accuracy epoch, not just the final one) / device selection
 train.py          # CLI: choose model, epochs, image size, subset; saves curves + metrics
 tests/
-└── test_cifar.py # 8 offline tests (model shapes, freezing logic, transforms, training step)
+└── test_cifar.py # 10 offline tests (model shapes, freezing logic, transforms, training
+                  # step, best-epoch checkpoint selection)
 ```
 
 ## Key design decisions
@@ -117,6 +119,10 @@ tests/
 - **`requires_grad` filtering, not a separate "frozen mode" code path** — freezing is
   expressed once, at model-construction time (`models.py`), and the optimizer/engine simply
   respect whatever `requires_grad` says.
+- **The checkpoint tracks the best epoch, not the last one** — `engine.fit()` deep-copies
+  `model.state_dict()` whenever test accuracy improves, so `reports/<model>.pt` is always the
+  weights that earned `best_test_acc` (also recorded as `best_epoch` in the metrics JSON),
+  even if accuracy peaked mid-training and regressed afterwards.
 - **Offline-first tests** — `pretrained=False` and `torchvision.datasets.FakeData` let the
   test suite validate real forward/backward passes and shape logic without a network call,
   so `pytest` is fast and reliable in any environment (including CI, once added — see
@@ -127,9 +133,6 @@ tests/
 - No committed benchmark artifacts (curves/metrics) from an actual training run — the
   accuracy table above is the well-known expected ordering, not a result reproduced in this
   repo, since a full run needs a GPU.
-- The saved checkpoint (`reports/<model>.pt`) is the model's state after the **final**
-  epoch, not the epoch that achieved `best_test_acc` in the metrics JSON — if accuracy peaks
-  mid-training, the two won't match. See the audit notes for the fix.
 - `train.py` imports via `from src.cifar import ...`, which only works because it's always
   invoked from the repo root; the installed package name is `cifar` (matching the tests).
 - No CI — the offline test suite exists but isn't run automatically on push/PR.
@@ -140,7 +143,6 @@ tests/
 
 ## Roadmap
 
-- [ ] Save the best-test-accuracy checkpoint, not just the final-epoch one.
 - [ ] Add a GitHub Actions workflow to run `pytest -q` on every push/PR.
 - [ ] Add a `--num-workers` flag for real training runs.
 - [ ] Commit one real `reports/cnn_curves.png` run so overfitting-control claims have a
