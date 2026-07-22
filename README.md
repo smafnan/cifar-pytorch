@@ -76,7 +76,7 @@ python train.py --model cnn --epochs 30                       # from scratch
 python train.py --model transfer --image-size 224 --epochs 10 # transfer learning (frozen)
 python train.py --model transfer --finetune --epochs 10        # transfer learning (fine-tuned)
 
-# 10 tests, fully offline (random tensors + torchvision FakeData, no CIFAR download):
+# 13 tests, fully offline (random tensors + torchvision FakeData, no CIFAR download):
 pytest -q
 ```
 
@@ -107,8 +107,10 @@ src/cifar/
                   # best-test-accuracy epoch, not just the final one) / device selection
 train.py          # CLI: choose model, epochs, image size, subset; saves curves + metrics
 tests/
-└── test_cifar.py # 10 offline tests (model shapes, freezing logic, transforms, training
-                  # step, best-epoch checkpoint selection)
+├── test_cifar.py    # 10 offline tests (model shapes, freezing logic, transforms, training
+│                     # step, best-epoch checkpoint selection)
+└── test_train_cli.py # 3 offline tests for the train.py CLI (arg wiring, output files,
+                       # --no-download / --no-pretrained regression)
 ```
 
 ## Key design decisions
@@ -133,13 +135,9 @@ tests/
 - No committed benchmark artifacts (curves/metrics) from an actual training run — the
   accuracy table above is the well-known expected ordering, not a result reproduced in this
   repo, since a full run needs a GPU.
-- `train.py` imports via `from src.cifar import ...`, which only works because it's always
-  invoked from the repo root; the installed package name is `cifar` (matching the tests).
 - No CI — the offline test suite exists but isn't run automatically on push/PR.
 - `num_workers=0` is hardcoded in the data loaders; no CLI flag to raise it for
   faster real (non-smoke-test) GPU training.
-- `--no-download` also skips ImageNet-pretrained weights for the transfer model, not just
-  the CIFAR-10 dataset — not obvious from the flag name.
 
 ## Roadmap
 
@@ -147,7 +145,6 @@ tests/
 - [ ] Add a `--num-workers` flag for real training runs.
 - [ ] Commit one real `reports/cnn_curves.png` run so overfitting-control claims have a
       backing artifact.
-- [ ] Unify `train.py`'s import style with the rest of the package (`from cifar import ...`).
 
 ## License
 

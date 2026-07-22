@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 
-from src.cifar import (
+from cifar import (
     build_model,
     count_trainable_params,
     fit,
@@ -45,7 +45,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--image-size", type=int, default=None,
                    help="32 for cnn, 224 for transfer (set automatically if omitted).")
     p.add_argument("--subset", type=int, default=None, help="Limit samples per split.")
-    p.add_argument("--no-download", action="store_true")
+    p.add_argument("--no-download", action="store_true",
+                   help="Skip downloading CIFAR-10 (requires it to already be cached locally).")
+    p.add_argument("--no-pretrained", action="store_true",
+                   help="For transfer: skip loading ImageNet-pretrained weights "
+                        "(build the architecture only). Pretrained weights are used by default.")
     p.add_argument("--finetune", action="store_true",
                    help="For transfer: unfreeze the whole backbone.")
     p.add_argument("--device", default="auto")
@@ -67,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     model_kwargs = {}
     if args.model == "transfer":
         model_kwargs = {"freeze_backbone": not args.finetune,
-                        "pretrained": not args.no_download}
+                        "pretrained": not args.no_pretrained}
     model = build_model(args.model, num_classes=10, **model_kwargs).to(device)
     print(f"Trainable parameters: {count_trainable_params(model):,}")
 
